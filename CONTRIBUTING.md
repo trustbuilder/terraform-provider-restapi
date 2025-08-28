@@ -3,7 +3,8 @@
 # 🛠️ Requirements
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
 - [Go](https://golang.org/doc/install) >= 1.23
-- [golint]
+- [golangci-lint](https://github.com/golangci/golangci-lint?tab=readme-ov-file#install-golangci-lint)
+- [pre-commit](https://pre-commit.com/#installation)
 
 # 🚀 Getting Started
 
@@ -21,6 +22,11 @@
     # the dev_overrides block, and so no other providers will be available.
     direct {}
     }
+    ```
+3. pre-commit
+    ```
+    pre-commit install
+    pre-commit run -all-files
     ```
 
 ## 🐛 Debugging

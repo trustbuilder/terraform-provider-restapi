@@ -25,28 +25,11 @@ repos:
       - id: trailing-whitespace
         args: [ --markdown-linebreak-ext=md ]
       - id: requirements-txt-fixer
-  - repo: local
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.4.0  # Use the latest version
     hooks:
-      - id: make-fmt
-        name: Run Make Format
-        entry: make fmt
-        language: system
-        types: [go]
-      - id: make-lint
-        name: Run Make Lint
-        entry: make lint
-        language: system
-        types: [go]
-      - id: make-test
-        name: Run Make Test
-        entry: make testacc
-        language: system
-        types: [go]
-      - id: make-doc
-        name: Run Make Generate
-        entry: make generate
-        language: system
-        types: [go]
+      - id: golangci-lint
+        additional_dependencies: []
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:

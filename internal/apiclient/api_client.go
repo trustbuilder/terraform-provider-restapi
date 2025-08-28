@@ -57,7 +57,7 @@ type ApiClientOpt struct {
 	Debug               bool
 }
 
-/*APIClient is a HTTP client with additional controlling fields*/
+/*APIClient is a HTTP client with additional controlling fields.*/
 type APIClient struct {
 	HttpClient          *http.Client
 	Uri                 string
@@ -82,7 +82,7 @@ type APIClient struct {
 	OauthConfig         *clientcredentials.Config
 }
 
-// NewAPIClient makes a new api client for RESTful calls
+// NewAPIClient makes a new api client for RESTful calls.
 func NewAPIClient(opt *ApiClientOpt) (*APIClient, error) {
 	if opt.Debug {
 		log.Printf("api_client.go: Constructing debug api_client\n")
@@ -311,7 +311,7 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 		log.Printf("api_client.go: BODY:\n")
 		body := "<none>"
 		if req.Body != nil {
-			body = string(data)
+			body = data
 		}
 		log.Printf("%s\n", body)
 	}

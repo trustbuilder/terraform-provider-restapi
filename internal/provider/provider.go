@@ -201,6 +201,7 @@ func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Attributes:  oauthClientCredentialsResourceSchema(),
 			},
 		},
+		Description: "Provider managing REST API queries. The only authenthication way is JWT.",
 	}
 }
 
@@ -349,6 +350,12 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 	opt.RootCaString = config.RootCaString.ValueString()
 
 	client, err := apiclient.NewAPIClient(opt)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"API client creation fail",
+			fmt.Sprintf("The creation of the API client failed. Verify the provider configuration. %v", err),
+		)
+	}
 
 	testPath := config.TestPath.ValueString()
 	_, err = client.SendRequest(client.ReadMethod, testPath, "")

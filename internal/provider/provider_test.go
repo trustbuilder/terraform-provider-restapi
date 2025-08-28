@@ -92,11 +92,7 @@ func TestProvider_basic(t *testing.T) {
 
 func createProviderServer(provider provider.Provider) (tfprotov6.ProviderServer, error) {
 	providerServerFunc := providerserver.NewProtocol6WithError(provider)
-	server, err := providerServerFunc()
-	if err != nil {
-	} else {
-	}
-	return server, err
+	return providerServerFunc()
 }
 
 func hasError(diagnostics []*tfprotov6.Diagnostic) bool {

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-/*Fakeserver represents a HTTP server with objects to hold and return*/
+/*Fakeserver represents a HTTP server with objects to hold and return.*/
 type Fakeserver struct {
 	server  *http.Server
 	objects map[string]map[string]interface{}
@@ -19,7 +19,7 @@ type Fakeserver struct {
 	running bool
 }
 
-/*NewFakeServer creates a HTTP server used for tests and debugging*/
+/*NewFakeServer creates a HTTP server used for tests and debugging.*/
 func NewFakeServer(iPort int, iObjects map[string]map[string]interface{}, iStart bool, iDebug bool, dir string) *Fakeserver {
 	serverMux := http.NewServeMux()
 
@@ -61,7 +61,7 @@ func NewFakeServer(iPort int, iObjects map[string]map[string]interface{}, iStart
 	return svr
 }
 
-/*StartInBackground starts the HTTP server in the background*/
+/*StartInBackground starts the HTTP server in the background.*/
 func (svr *Fakeserver) StartInBackground() {
 	go func() {
 		if err := svr.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -74,18 +74,18 @@ func (svr *Fakeserver) StartInBackground() {
 	svr.running = true
 }
 
-/*Shutdown closes the server*/
+/*Shutdown closes the server.*/
 func (svr *Fakeserver) Shutdown() {
 	svr.server.Close()
 	svr.running = false
 }
 
-/*Running returns whether the server is running*/
+/*Running returns whether the server is running.*/
 func (svr *Fakeserver) Running() bool {
 	return svr.running
 }
 
-/*GetServer returns the server object itself*/
+/*GetServer returns the server object itself.*/
 func (svr *Fakeserver) GetServer() *http.Server {
 	return svr.server
 }
@@ -99,7 +99,7 @@ func (svr *Fakeserver) handleAPIObject(w http.ResponseWriter, r *http.Request) {
 	b, _ := io.ReadAll(r.Body)
 
 	if svr.debug {
-		log.Printf("fakeserver.go: Recieved request: %+v\n", r)
+		log.Printf("fakeserver.go: Received request: %+v\n", r)
 		log.Printf("fakeserver.go: Headers:\n")
 		for name, headers := range r.Header {
 			name = strings.ToLower(name)

@@ -1,3 +1,3 @@
 provider "restapi" {
-  uri = ""
+  uri = "https://trustbuilder.com"
 }

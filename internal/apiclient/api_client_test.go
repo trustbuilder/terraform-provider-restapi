@@ -189,7 +189,9 @@ func setupAPIClientTLSServer() {
 
 	serverMux := http.NewServeMux()
 	serverMux.HandleFunc("/ok", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("It works!"))
+		if _, err := w.Write([]byte("It works!")); err != nil {
+			log.Fatalf("setupAPIClientTLSServer(): %v", err)
+		}
 	})
 
 	apiClientTLSServer = &http.Server{
@@ -197,7 +199,13 @@ func setupAPIClientTLSServer() {
 		Handler:   serverMux,
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
 	}
-	go apiClientTLSServer.ListenAndServeTLS("", "")
+
+	go func() {
+		if err := apiClientTLSServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("setupAPIClientTLSServer(): %v", err)
+		}
+	}()
+
 	/* let the server start */
 	time.Sleep(1 * time.Second)
 }
