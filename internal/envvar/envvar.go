@@ -2,9 +2,6 @@ package envvar
 
 const (
 	RestApiUri           = "REST_API_URI"
-	RestApiInsecure      = "REST_API_INSECURE"
-	RestApiUsername      = "REST_API_USERNAME"
-	RestApiUseCookies    = "REST_API_USE_COOKIES"
 	RestApiTimeout       = "REST_API_TIMEOUT"
 	RestApiIdAttribute   = "REST_API_ID_ATTRIBUTE"
 	RestApiCreateMethod  = "REST_API_CREATE_METHOD"
@@ -13,15 +10,6 @@ const (
 	RestApiDestroyMethod = "REST_API_DESTROY_METHOD"
 	RestApiWro           = "REST_API_WRO"
 	RestApiCro           = "REST_API_CRO"
-	RestApiXssiPrefix    = "REST_API_XSSI_PREFIX"
-	RestApiRateLimit     = "REST_API_RATE_LIMIT"
 	RestApiTestPath      = "REST_API_TEST_PATH"
 	RestApiDebug         = "REST_API_DEBUG"
-	RestApiCertString    = "REST_API_CERT_STRING"
-	RestApiKeyString     = "REST_API_KEY_STRING"
-	RestApiCertFile      = "REST_API_CERT_FILE"
-	RestApiKeyFile       = "REST_API_KEY_FILE"
-	RestApiRootCaFile    = "REST_API_ROOT_CA_FILE"
-	RestApiRootCaString  = "REST_API_ROOT_CA_STRING"
-	RestApiPassword      = "REST_API_PASSWORD"
 )
