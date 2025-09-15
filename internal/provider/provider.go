@@ -40,18 +40,18 @@ func New(version string) func() provider.Provider {
 
 // Describes the provider data model.
 type RestapiProviderModel struct {
-	URI                    types.String  `tfsdk:"uri"`
-	Headers                types.Map     `tfsdk:"headers"`
-	Timeout                types.Int64   `tfsdk:"timeout"`
-	IdAttribute            types.String  `tfsdk:"id_attribute"`
-	CreateMethod           types.String  `tfsdk:"create_method"`
-	ReadMethod             types.String  `tfsdk:"read_method"`
-	UpdateMethod           types.String  `tfsdk:"update_method"`
-	DestroyMethod          types.String  `tfsdk:"destroy_method"`
-	WriteReturnsObject     types.Bool    `tfsdk:"write_returns_object"`
-	CreateReturnsObject    types.Bool    `tfsdk:"create_returns_object"`
-	TestPath               types.String  `tfsdk:"test_path"`
-	Debug                  types.Bool    `tfsdk:"debug"`
+	URI                 types.String `tfsdk:"uri"`
+	Headers             types.Map    `tfsdk:"headers"`
+	Timeout             types.Int64  `tfsdk:"timeout"`
+	IdAttribute         types.String `tfsdk:"id_attribute"`
+	CreateMethod        types.String `tfsdk:"create_method"`
+	ReadMethod          types.String `tfsdk:"read_method"`
+	UpdateMethod        types.String `tfsdk:"update_method"`
+	DestroyMethod       types.String `tfsdk:"destroy_method"`
+	WriteReturnsObject  types.Bool   `tfsdk:"write_returns_object"`
+	CreateReturnsObject types.Bool   `tfsdk:"create_returns_object"`
+	TestPath            types.String `tfsdk:"test_path"`
+	Debug               types.Bool   `tfsdk:"debug"`
 }
 
 func (p *RestapiProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -153,7 +153,6 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 
 	// headers := make(map[string]string)
 	// if iHeaders := config.Headers.ToMapValue(); iHeaders != nil {
