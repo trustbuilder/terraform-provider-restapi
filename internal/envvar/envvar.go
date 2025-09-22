@@ -2,6 +2,7 @@ package envvar
 
 const (
 	RestApiUri           = "REST_API_URI"
+	RestApiJwtSecret     = "REST_API_JWT_SECRET"
 	RestApiTimeout       = "REST_API_TIMEOUT"
 	RestApiIdAttribute   = "REST_API_ID_ATTRIBUTE"
 	RestApiCreateMethod  = "REST_API_CREATE_METHOD"

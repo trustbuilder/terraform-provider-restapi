@@ -42,6 +42,7 @@ func New(version string) func() provider.Provider {
 type RestapiProviderModel struct {
 	URI                 types.String `tfsdk:"uri"`
 	Headers             types.Map    `tfsdk:"headers"`
+	JwtHashedToken      types.Object `tfsdk:"jwt_hashed_token"`
 	Timeout             types.Int64  `tfsdk:"timeout"`
 	IdAttribute         types.String `tfsdk:"id_attribute"`
 	CreateMethod        types.String `tfsdk:"create_method"`
@@ -54,6 +55,12 @@ type RestapiProviderModel struct {
 	Debug               types.Bool   `tfsdk:"debug"`
 }
 
+type JwtHashedTokenModel struct {
+	ClaimsJson types.String `tfsdk:"claims_json"`
+	Secret     types.String `tfsdk:"secret"`
+	Algorithm  types.String `tfsdk:"algorithm"`
+}
+
 func (p *RestapiProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "restapi"
 	resp.Version = p.version
@@ -64,7 +71,7 @@ func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest
 		Attributes: map[string]schema.Attribute{
 			"uri": schema.StringAttribute{
 				Description: "URI of the REST API endpoint. This serves as the base of all requests.",
-				Required:    false,
+				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(10, 2048),
 					stringvalidator.RegexMatches(
@@ -78,6 +85,11 @@ func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Description: "A map of header names and values to set on all outbound requests. This is useful if you want to use a script via the 'external' provider or provide a pre-approved token or change Content-Type from `application/json`. If `username` and `password` are set and Authorization is one of the headers defined here, the BASIC auth credentials take precedence.",
 				ElementType: types.StringType,
 				Optional:    true,
+			},
+			"jwt_hashed_token": schema.SingleNestedAttribute{
+				Description: "Configuration for JWT token generation.",
+				Optional:    true,
+				Attributes:  jwtHashedTokenResourceSchema(),
 			},
 			"timeout": schema.Int64Attribute{
 				Description: "When set, will cause requests taking longer than this time (in seconds) to be aborted.",
@@ -121,6 +133,27 @@ func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest
 			},
 		},
 		Description: "Provider managing REST API queries. The only authenthication way is JWT.",
+	}
+}
+
+func jwtHashedTokenResourceSchema() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"claims_json": schema.StringAttribute{
+			Description: "The token's claims, as a JSON document",
+			Required:    true,
+		},
+		"secret": schema.StringAttribute{
+			Description: "HMAC secret to sign the JWT with",
+			Required:    true,
+			Sensitive:   true,
+		},
+		"algorithm": schema.StringAttribute{
+			Description: "Signing algorithm to use.",
+			Optional:    true,
+			Validators: []validator.String{
+				stringvalidator.OneOf([]string{"HS256", "HS384", "HS512"}...),
+			},
+		},
 	}
 }
 
@@ -178,6 +211,39 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 		ReadMethod:    config.ReadMethod.ValueString(),
 		UpdateMethod:  config.UpdateMethod.ValueString(),
 		DestroyMethod: config.DestroyMethod.ValueString(),
+	}
+
+	var jwtHashedTokenModel JwtHashedTokenModel
+	if !config.JwtHashedToken.IsNull() && !config.JwtHashedToken.IsUnknown() {
+		diags := req.Config.GetAttribute(ctx, path.Root("jwt_hased_token"), &jwtHashedTokenModel)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		jwtSecret := os.Getenv(envvar.RestApiJwtSecret)
+		if !jwtHashedTokenModel.Secret.IsNull() {
+			jwtSecret = jwtHashedTokenModel.Secret.ValueString()
+			tflog.Debug(ctx, "jwtSecret content: "+jwtSecret)
+		}
+
+		if jwtSecret == "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("jwt_hashed_token.secret"),
+				"The jwt secret is mandatory when the jwt is used",
+				"The provider has unknown configuration value for the jwt secret. "+
+					"Set the secret value in the jwt_hashed_token attribute or use the "+envvar.RestApiJwtSecret+" environment variable. "+
+					"If either is already set, ensure the value is not empty.",
+			)
+		}
+
+		jwt := &apiclient.JwtHashedToken{
+			Secret:     jwtSecret,
+			Algortithm: jwtHashedTokenModel.Algorithm.ValueString(),
+			ClaimsJson: jwtHashedTokenModel.ClaimsJson.ValueString(),
+		}
+
+		opt.Jwt = jwt
 	}
 
 	client, err := apiclient.NewAPIClient(opt)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,10 +21,19 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/time/rate"
+
+	jwtgen "github.com/golang-jwt/jwt/v5"
 )
+
+type JwtHashedToken struct {
+	Secret     string
+	Algortithm string
+	ClaimsJson string
+}
 
 type ApiClientOpt struct {
 	Uri                 string
+	Jwt                 *JwtHashedToken
 	Insecure            bool
 	Username            string
 	Password            string
@@ -61,6 +71,7 @@ type ApiClientOpt struct {
 type APIClient struct {
 	HttpClient          *http.Client
 	Uri                 string
+	Jwt                 *JwtHashedToken
 	Insecure            bool
 	Username            string
 	Password            string
@@ -80,6 +91,20 @@ type APIClient struct {
 	RateLimiter         *rate.Limiter
 	Debug               bool
 	OauthConfig         *clientcredentials.Config
+}
+
+func createHashedJWT(jwt *JwtHashedToken) (string, error) {
+
+	signer := jwtgen.GetSigningMethod(jwt.Algortithm)
+	jsonClaims := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(jwt.ClaimsJson), &jsonClaims); err != nil {
+		return "", err
+	}
+
+	token := jwtgen.NewWithClaims(signer, jwtgen.MapClaims(jsonClaims))
+
+	return token.SignedString([]byte(jwt.Secret))
+
 }
 
 // NewAPIClient makes a new api client for RESTful calls.
@@ -186,6 +211,7 @@ func NewAPIClient(opt *ApiClientOpt) (*APIClient, error) {
 		},
 		RateLimiter:         rateLimiter,
 		Uri:                 opt.Uri,
+		Jwt:                 opt.Jwt,
 		Insecure:            opt.Insecure,
 		Username:            opt.Username,
 		Password:            opt.Password,
@@ -226,6 +252,9 @@ func NewAPIClient(opt *ApiClientOpt) (*APIClient, error) {
 func (client *APIClient) toString() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("uri: %s\n", client.Uri))
+	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
+	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
+	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.ClaimsJson))
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.Insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.Username))
 	buffer.WriteString(fmt.Sprintf("password: %s\n", client.Password))
@@ -283,6 +312,11 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 		for n, v := range client.Headers {
 			req.Header.Set(n, v)
 		}
+	}
+
+	if client.Jwt != nil {
+		jwt, _ := createHashedJWT(client.Jwt)
+		req.Header.Set("Authorization", "Bearer "+jwt)
 	}
 
 	if client.OauthConfig != nil {
