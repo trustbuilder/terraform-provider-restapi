@@ -7,14 +7,19 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"math/big"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var (
@@ -26,17 +31,63 @@ var (
 	rootCAFilePath              = "rootCA.pem"
 )
 
+func TestCreateHashedJWT(t *testing.T) {
+	tests := []struct {
+		jwt      *JwtHashedToken
+		expected string
+	}{
+		{
+			&JwtHashedToken{
+				Secret:     "NotTheMostSecuredSecret",
+				Algortithm: "HS256",
+				ClaimsJson: `{"a":"b"}`,
+			},
+			"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.Y0CPYzbef6amCMdDiNVR6mV9ZUjES5Y3ynVRwaDqyh0",
+		}, {
+			&JwtHashedToken{
+				Secret:     "NotTheMostSecuredSecret",
+				Algortithm: "HS512",
+				ClaimsJson: `{"iss":"myIssuer","sub":"mySubject","aud":"myAudience","nbf":"1758187630","exp":"1758197630","iat":"1758187630","jti":"b46107a8-4de4-f1f3-2500-aa749dc01229"}`,
+			},
+			"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJteUF1ZGllbmNlIiwiZXhwIjoiMTc1ODE5NzYzMCIsImlhdCI6IjE3NTgxODc2MzAiLCJpc3MiOiJteUlzc3VlciIsImp0aSI6ImI0NjEwN2E4LTRkZTQtZjFmMy0yNTAwLWFhNzQ5ZGMwMTIyOSIsIm5iZiI6IjE3NTgxODc2MzAiLCJzdWIiOiJteVN1YmplY3QifQ.JxSnALVbnIwMbSXsT9CXEsQkCuaixxfXlEQtzWier4E2uMF0-lGfoRvJ6dSjO9sLJ2mVhuc976ldlnpxWVsRaQ",
+		},
+	}
+
+	for _, test := range tests {
+		result, err := createHashedJWT(test.jwt)
+		if err != nil {
+			t.Errorf("createHashedJWT function returned an error: %s", err)
+		}
+		if result != test.expected {
+			t.Errorf("createHashedJWT(jwt) = %s; want %s", result, test.expected)
+		}
+	}
+}
+
 func TestAPIClient(t *testing.T) {
 	debug := false
+	now := time.Now()
 
 	if debug {
-		log.Println("client_test.go: Starting HTTP server")
+		log.Println("api_client_test.go: Starting HTTP server")
 	}
-	setupAPIClientServer()
+
+	jwtSecret := []byte("NotTheMostSecuredSecret")
+	setupAPIClientServer(jwtSecret)
 
 	/* Notice the intentional trailing / */
 	opt := &ApiClientOpt{
-		Uri:                 "http://127.0.0.1:8083/",
+		Uri: "http://127.0.0.1:8083/",
+		Jwt: &JwtHashedToken{
+			Secret:     string(jwtSecret),
+			Algortithm: "HS512",
+			ClaimsJson: fmt.Sprintf(
+				`{"iss":"myIssuer","sub":"mySubject","aud":"myAudience","nbf":%d,"exp":%d,"iat":%d,"jti":"b46107a8-4de4-f1f3-2500-aa749dc01229"}`,
+				now.Unix(),
+				now.Add(2*time.Hour).Unix(),
+				now.Unix(),
+			),
+		},
 		Insecure:            false,
 		Username:            "",
 		Password:            "",
@@ -59,10 +110,10 @@ func TestAPIClient(t *testing.T) {
 	}
 	res, err = client.SendRequest("GET", "/ok", "")
 	if err != nil {
-		t.Fatalf("client_test.go: %s", err)
+		t.Fatalf("api_client_test.go: %s", err)
 	}
 	if res != "It works!" {
-		t.Fatalf("client_test.go: Got back '%s' but expected 'It works!'\n", res)
+		t.Fatalf("api_client_test.go: Got back '%s' but expected 'It works!'\n", res)
 	}
 
 	if debug {
@@ -70,44 +121,52 @@ func TestAPIClient(t *testing.T) {
 	}
 	res, err = client.SendRequest("GET", "/redirect", "")
 	if err != nil {
-		t.Fatalf("client_test.go: %s", err)
+		t.Fatalf("api_client_test.go: %s", err)
 	}
 	if res != "It works!" {
-		t.Fatalf("client_test.go: Got back '%s' but expected 'It works!'\n", res)
+		t.Fatalf("api_client_test.go: Got back '%s' but expected 'It works!'\n", res)
 	}
 
 	/* Verify timeout works */
 	if debug {
-		log.Printf("api_client_test.go: Testing timeout aborts requests\n")
+		log.Println("api_client_test.go: Testing timeout aborts requests")
 	}
 	_, err = client.SendRequest("GET", "/slow", "")
 	if err == nil {
-		t.Fatalf("client_test.go: Timeout did not trigger on slow request")
+		t.Fatalf("api_client_test.go: Timeout did not trigger on slow request\n")
 	}
 
 	if debug {
-		log.Printf("api_client_test.go: Testing rate limited OK request\n")
+		log.Println("api_client_test.go: Testing rate limited OK request")
 	}
 	startTime := time.Now().Unix()
 
 	for i := 0; i < 4; i++ {
 		_, err = client.SendRequest("GET", "/ok", "")
 		if err != nil {
-			t.Fatalf("client_test.go: Timeout did not trigger on ok request")
+			t.Fatalf("api_client_test.go: Timeout did not trigger on ok request\n")
 		}
+	}
+
+	if debug {
+		log.Println("api_client_test.go: Testing jwt")
+	}
+	_, err = client.SendRequest("GET", "/validate-jwt", "")
+	if err != nil {
+		t.Fatalf("api_client_test.go: Error on JWT validation\n")
 	}
 
 	duration := time.Now().Unix() - startTime
 	if duration < 3 {
-		t.Fatalf("client_test.go: requests not delayed\n")
+		t.Fatalf("api_client_test.go: requests not delayed\n")
 	}
 
 	if debug {
-		log.Println("client_test.go: Stopping HTTP server")
+		log.Println("api_client_test.go: Stopping HTTP server")
 	}
 	shutdownAPIClientServer()
 	if debug {
-		log.Println("client_test.go: Done")
+		log.Println("api_client_test.go: Done")
 	}
 
 	// Setup and test HTTPS client with root CA
@@ -117,6 +176,7 @@ func TestAPIClient(t *testing.T) {
 
 	httpsOpt := &ApiClientOpt{
 		Uri:                 "https://127.0.0.1:8443/",
+		Jwt:                 nil,
 		Insecure:            false,
 		Username:            "",
 		Password:            "",
@@ -133,35 +193,82 @@ func TestAPIClient(t *testing.T) {
 	httpsClient, httpsClientErr := NewAPIClient(httpsOpt)
 
 	if httpsClientErr != nil {
-		t.Fatalf("client_test.go: %s", httpsClientErr)
+		t.Fatalf("api_client_test.go: %s", httpsClientErr)
 	}
 	if debug {
 		log.Printf("api_client_test.go: Testing HTTPS standard OK request\n")
 	}
 	res, err = httpsClient.SendRequest("GET", "/ok", "")
 	if err != nil {
-		t.Fatalf("client_test.go: %s", err)
+		t.Fatalf("api_client_test.go: %s", err)
 	}
 	if res != "It works!" {
-		t.Fatalf("client_test.go: Got back '%s' but expected 'It works!'\n", res)
+		t.Fatalf("api_client_test.go: Got back '%s' but expected 'It works!'\n", res)
 	}
 }
 
-func setupAPIClientServer() {
+func extractBearerToken(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("authorization header missing")
+	}
+
+	const prefix = "Bearer "
+	if !strings.HasPrefix(authHeader, prefix) {
+		return "", fmt.Errorf("authorization header format must be Bearer {token}")
+	}
+
+	return strings.TrimPrefix(authHeader, prefix), nil
+}
+
+func setupAPIClientServer(jwtSecret []byte) {
 	serverMux := http.NewServeMux()
 	serverMux.HandleFunc("/ok", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte("It works!")); err != nil {
-			log.Fatalf("client_test.go: Error on sending ok response: %s\n", err)
+			log.Fatalf("api_client_test.go: Error on sending ok response: %s\n", err)
 		}
 	})
 	serverMux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(9999 * time.Second)
 		if _, err := w.Write([]byte("This will never return!!!!!")); err != nil {
-			log.Fatalf("client_test.go: Error on sending slow response: %s\n", err)
+			log.Fatalf("api_client_test.go: Error on sending slow response: %s\n", err)
 		}
 	})
 	serverMux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ok", http.StatusPermanentRedirect)
+	})
+
+	serverMux.HandleFunc("/validate-jwt", func(w http.ResponseWriter, r *http.Request) {
+		debug := false
+		if len(jwtSecret) != 0 {
+			jwtTokenString, err := extractBearerToken(r)
+			if debug {
+				log.Printf("api_client_test.go: jwtTokenString content: %s", jwtTokenString)
+			}
+			if err != nil {
+				log.Fatalf("api_client_test.go: Error on extracting the bearer token")
+			}
+
+			token, err := jwt.Parse(jwtTokenString, func(token *jwt.Token) (any, error) {
+				return jwtSecret, nil
+			})
+			if err != nil {
+				log.Fatalf("api_client_test.go: Error on parsing jwt: %s", err)
+			}
+
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				log.Fatalf("api_client_test.go: Error on MapClaims type assertion")
+			}
+			claimsJSON, err := json.Marshal(claims)
+			if err != nil {
+				log.Fatalf("api_client_test.go: Error marshalling claims: %s\n", err)
+			}
+
+			if _, err := w.Write([]byte(string(claimsJSON))); err != nil {
+				log.Fatalf("api_client_test.go: Error on sending validate-jwt response: %s\n", err)
+			}
+		}
 	})
 
 	apiClientServer = &http.Server{
