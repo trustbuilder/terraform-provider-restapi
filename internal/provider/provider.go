@@ -216,7 +216,7 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	var jwtHashedTokenModel JwtHashedTokenModel
 	if !config.JwtHashedToken.IsNull() && !config.JwtHashedToken.IsUnknown() {
-		diags := req.Config.GetAttribute(ctx, path.Root("jwt_hased_token"), &jwtHashedTokenModel)
+		diags := req.Config.GetAttribute(ctx, path.Root("jwt_hashed_token"), &jwtHashedTokenModel)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
