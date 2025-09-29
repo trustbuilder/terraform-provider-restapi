@@ -7,10 +7,7 @@ import (
 	"strings"
 	"time"
 
-	//	"github.com/go-git/go-git/v5/plumbing/transport/client"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/identityschema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -37,10 +34,6 @@ type tenantResourceModel struct {
 	Tenant      types.String `tfsdk:"tenant"`
 	Path        types.String `tfsdk:"path"`
 	Data        types.String `tfsdk:"data"`
-}
-
-type tenantResourceIdentityModel struct {
-	Id types.String `tfsdk:"id"`
 }
 
 // NewtenantResource is a helper function to simplify the provider implementation.
@@ -93,21 +86,9 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	}
 }
 
-func (r *tenantResource) IdentitySchema(_ context.Context, _ resource.IdentitySchemaRequest, resp *resource.IdentitySchemaResponse) {
-	resp.IdentitySchema = identityschema.Schema{
-		Attributes: map[string]identityschema.Attribute{
-			"id": identityschema.StringAttribute{
-				Description:       "Tenant name",
-				RequiredForImport: true, // must be set during import by the practitioner
-			},
-		},
-	}
-}
-
 // Create a new resource.
 func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var planResource tenantResourceModel
-	var identity tenantResourceIdentityModel
 
 	diags := req.Plan.Get(ctx, &planResource)
 	resp.Diagnostics.Append(diags...)
@@ -121,20 +102,12 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 	if err := (&planResource).update_computed_fields(responseData); err != nil {
-		resp.Diagnostics.AddError("Missing mandatory attribute in API response", fmt.Sprintf("Missing attribute in the creation response : %s", err))
+		resp.Diagnostics.AddError("Missing attribute in create API response", fmt.Sprintf("Missing attribute in the creation response : %s", err))
 		return
 	}
 
 	planResource.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
 
-	identity = tenantResourceIdentityModel{
-		Id: planResource.Tenant,
-	}
-	// Set identity block
-	resp.Diagnostics.Append(resp.Identity.Set(ctx, identity)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 	// Set state to fully populated data
 	resp.Diagnostics.Append(resp.State.Set(ctx, planResource)...)
 	if resp.Diagnostics.HasError() {
@@ -150,21 +123,14 @@ func (r *tenantResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	// Read identity data
-	var identityData tenantResourceIdentityModel
-	resp.Diagnostics.Append(req.Identity.Get(ctx, &identityData)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	path := strings.TrimRight(stateResource.Path.ValueString(), "/") + "/?identifier=" + stateResource.Tenant.ValueString()
+	path := strings.TrimRight(stateResource.Path.ValueString(), "/") + "?identifier=" + stateResource.Tenant.ValueString()
 	responseData, err := r.client.SendRequest("GET", path, "")
 	if err != nil {
-		resp.Diagnostics.AddError("Create request error", fmt.Sprintf("Creation request returned the error: %s", err))
+		resp.Diagnostics.AddError("Read request error", fmt.Sprintf("Read request returned the error: %s on the path: %s", err, path))
 		return
 	}
 	if err := (&stateResource).update_computed_fields(responseData); err != nil {
-		resp.Diagnostics.AddError("Missing mandatory attribute in API response", fmt.Sprintf("Missing attribute in the read response : %s", err))
+		resp.Diagnostics.AddError("Missing attribute in read API response", fmt.Sprintf("Missing attribute in the read response : %s", err))
 		return
 	}
 }
@@ -179,7 +145,7 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	//plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
 
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
@@ -187,10 +153,6 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("tenant"), req, resp)
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -221,23 +183,41 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (m *tenantResourceModel) update_computed_fields(jsonData string) error {
-	mapData := make(map[string]any)
+	//accept a json with an array of 1 object or an object
+	var data any
+	var mapData map[string]any
 	var id string
 	var tenant string
+	var ok bool
 
-	if err := json.Unmarshal([]byte(jsonData), &mapData); err != nil {
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
 		return err
 	}
 
-	if _, ok := mapData["id"]; !ok {
+	switch v := data.(type) {
+	case map[string]any:
+		mapData, ok = data.(map[string]any)
+		if !ok {
+			return fmt.Errorf("type assertion from any to map[string]any fail")
+		}
+	case []any:
+		mapData, ok = data.([]any)[0].(map[string]any)
+		if !ok {
+			return fmt.Errorf("type assertion from any to []any fail")
+		}
+	default:
+		return fmt.Errorf("the json data is not an array, neither a map: %T", v)
+	}
+
+	if _, ok = mapData["id"]; !ok {
 		return fmt.Errorf("id not found")
 	}
-	id, ok := mapData["id"].(string)
+	id, ok = mapData["id"].(string)
 	if !ok {
 		return fmt.Errorf("id value can't be casted into string")
 	}
 
-	if _, ok := mapData["identifier"]; !ok {
+	if _, ok = mapData["identifier"]; !ok {
 		return fmt.Errorf("identifier not found")
 	}
 	tenant, ok = mapData["identifier"].(string)

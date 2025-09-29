@@ -252,9 +252,11 @@ func NewAPIClient(opt *ApiClientOpt) (*APIClient, error) {
 func (client *APIClient) toString() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("uri: %s\n", client.Uri))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.ClaimsJson))
+	if client.Jwt != nil {
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.ClaimsJson))
+	}
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.Insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.Username))
 	buffer.WriteString(fmt.Sprintf("password: %s\n", client.Password))
@@ -282,7 +284,7 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 	var err error
 
 	if client.Debug {
-		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", method, path, fullURI, data)
+		log.Printf("api_client.go: method=%s, path=%s, full uri (derived)=%s, data=%s\n", method, path, fullURI, data)
 	}
 
 	buffer := bytes.NewBuffer([]byte(data))

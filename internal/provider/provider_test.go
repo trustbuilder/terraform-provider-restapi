@@ -13,10 +13,60 @@ import (
 const (
 	providerConfig = `
 provider "restapi" {
-  uri = "http://localhost:19090/api/object_list"
+  uri       = "http://localhost:19090"
+  test_path = "/api/object_list"
+  debug     = true
 }
 `
 )
+
+var testingDataObjects = map[string]map[string]any{
+	"1": {
+		"Test_case": "normal",
+		"Id":        "1",
+		"Revision":  1,
+		"Thing":     "potato",
+		"Is_cat":    false,
+		"Colors":    []string{"orange", "white"},
+		"Attrs": map[string]any{
+			"size":   "6 in",
+			"weight": "10 oz",
+		},
+	},
+	"2": {
+		"Test_case": "minimal",
+		"Id":        "2",
+		"Thing":     "fork",
+	},
+	"3": {
+		"Test_case": "no Colors",
+		"Id":        "3",
+		"Thing":     "paper",
+		"Is_cat":    false,
+		"Attrs": map[string]any{
+			"height": "8.5 in",
+			"width":  "11 in",
+		},
+	},
+	"4": {
+		"Test_case": "no Attrs",
+		"Id":        "4",
+		"Thing":     "nothing",
+		"Is_cat":    false,
+		"Colors":    []string{"none"},
+	},
+	"5": {
+		"Test_case": "pet",
+		"Id":        "5",
+		"Thing":     "cat",
+		"Is_cat":    true,
+		"Colors":    []string{"orange", "white"},
+		"Attrs": map[string]any{
+			"size":   "1.5 ft",
+			"weight": "15 lb",
+		},
+	},
+}
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
 // The factory function is called for each Terraform CLI command to create a provider
@@ -27,9 +77,7 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 
 func testAccPreCheck(t *testing.T) {
 	debug := false
-	apiServerObjects := make(map[string]map[string]interface{})
-
-	svr := fakeserver.NewFakeServer(19090, apiServerObjects, true, debug, "")
+	svr := fakeserver.NewFakeServer(19090, testingDataObjects, true, debug, "")
 
 	t.Cleanup(func() {
 		svr.Shutdown()

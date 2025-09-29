@@ -211,6 +211,7 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 		ReadMethod:    config.ReadMethod.ValueString(),
 		UpdateMethod:  config.UpdateMethod.ValueString(),
 		DestroyMethod: config.DestroyMethod.ValueString(),
+		RateLimit:     1,
 	}
 
 	var jwtHashedTokenModel JwtHashedTokenModel
@@ -255,12 +256,14 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 	}
 
 	testPath := config.TestPath.ValueString()
-	_, err = client.SendRequest(client.ReadMethod, testPath, "")
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Test send request fail",
-			fmt.Sprintf("a test request to %v after setting up the provider did not return an OK response - is your configuration correct? %v", testPath, err),
-		)
+	if testPath != "" {
+		_, err = client.SendRequest(client.ReadMethod, testPath, "")
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"test_path send request fail",
+				fmt.Sprintf("a test request to %v after setting up the provider did not return an OK response - is your configuration correct? %v", testPath, err),
+			)
+		}
 	}
 
 	resp.DataSourceData = client
@@ -270,7 +273,9 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *RestapiProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewObjectResource,
 		NewSampleResource,
+		NewTenantResource,
 	}
 }
 

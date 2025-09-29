@@ -31,6 +31,7 @@
 
 ## 🐛 Debugging
 * For [VSCode](https://registry.terraform.io/providers/DigitecGalaxus/dg-servicebus/latest/docs/guides/howto-debugprovider)
+* When you run the tests, if you want to see the **all the logs**, you have to set `TF_LOG="DEBUG"`.
 
 
 # ✅ Execute the tests
