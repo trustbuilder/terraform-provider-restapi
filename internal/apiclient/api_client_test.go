@@ -38,23 +38,23 @@ func TestCreateHashedJWT(t *testing.T) {
 	}{
 		{
 			&JwtHashedToken{
-				Secret:     "NotTheMostSecuredSecret",
+				Secret:     []byte("NotTheMostSecuredSecret"),
 				Algortithm: "HS256",
-				ClaimsJson: `{"a":"b"}`,
+				Claims:     map[string]any{"a": "b"},
 			},
 			"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhIjoiYiJ9.Y0CPYzbef6amCMdDiNVR6mV9ZUjES5Y3ynVRwaDqyh0",
 		}, {
 			&JwtHashedToken{
-				Secret:     "NotTheMostSecuredSecret",
+				Secret:     []byte("NotTheMostSecuredSecret"),
 				Algortithm: "HS512",
-				ClaimsJson: `{"iss":"myIssuer","sub":"mySubject","aud":"myAudience","nbf":"1758187630","exp":"1758197630","iat":"1758187630","jti":"b46107a8-4de4-f1f3-2500-aa749dc01229"}`,
+				Claims:     map[string]any{"iss": "myIssuer", "sub": "mySubject", "aud": "myAudience", "nbf": "1758187630", "exp": "1758197630", "iat": "1758187630", "jti": "b46107a8-4de4-f1f3-2500-aa749dc01229"},
 			},
 			"eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJteUF1ZGllbmNlIiwiZXhwIjoiMTc1ODE5NzYzMCIsImlhdCI6IjE3NTgxODc2MzAiLCJpc3MiOiJteUlzc3VlciIsImp0aSI6ImI0NjEwN2E4LTRkZTQtZjFmMy0yNTAwLWFhNzQ5ZGMwMTIyOSIsIm5iZiI6IjE3NTgxODc2MzAiLCJzdWIiOiJteVN1YmplY3QifQ.JxSnALVbnIwMbSXsT9CXEsQkCuaixxfXlEQtzWier4E2uMF0-lGfoRvJ6dSjO9sLJ2mVhuc976ldlnpxWVsRaQ",
 		},
 	}
 
 	for _, test := range tests {
-		result, err := createHashedJWT(test.jwt)
+		result, err := test.jwt.getSignedJwt()
 		if err != nil {
 			t.Errorf("createHashedJWT function returned an error: %s", err)
 		}
@@ -64,9 +64,58 @@ func TestCreateHashedJWT(t *testing.T) {
 	}
 }
 
+func TestCreateHashedJWT_withDuration(t *testing.T) {
+	jwtSecret := []byte("NotTheMostSecuredSecret")
+	validityDurationMinute := int64(1)
+	jwtHashedToken := &JwtHashedToken{
+		Secret:                 jwtSecret,
+		Algortithm:             "HS256",
+		Claims:                 map[string]any{"iss": "myIssuer", "sub": "mySubject", "aud": "myAudience", "jti": "b46107a8-4de4-f1f3-2500-aa749dc01229"},
+		ValidityDurationMinute: validityDurationMinute,
+	}
+	jwtHashedToken.completeClaimValidityTime()
+	jwtString, err := jwtHashedToken.getSignedJwt()
+	if err != nil {
+		t.Errorf("The jwt signing returned the error: %s", err)
+	}
+
+	token, err := jwt.Parse(jwtString, func(token *jwt.Token) (any, error) {
+		return jwtSecret, nil
+	})
+	if err != nil {
+		t.Errorf("The jwt parsing returned the error: %s", err)
+	}
+	if !token.Valid {
+		t.Errorf("Token not valid: %s", err)
+	}
+
+	//verify the validity duration
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		iat, err := claims.GetIssuedAt()
+		if err != nil || iat == nil {
+			t.Errorf("Error getting iat in claims: %s", err)
+		}
+		nbf, err := claims.GetNotBefore()
+		if err != nil || nbf == nil {
+			t.Errorf("Error getting nbf in claims: %s", err)
+		}
+		if *iat != *nbf {
+			t.Error("In the claims, nbf and iat should be the same")
+		}
+		exp, err := claims.GetExpirationTime()
+		if err != nil || exp == nil {
+			t.Errorf("Error getting exp in claims: %s", err)
+		}
+		if exp.Sub(iat.Time) != (time.Duration(validityDurationMinute) * time.Minute) {
+			t.Error("The difference between the claims exp and iat does not correspond to the validity duration")
+		}
+	} else {
+		t.Error("Type assertion error on the claims")
+	}
+}
+
 func TestAPIClient(t *testing.T) {
 	debug := false
-	now := time.Now()
 
 	if debug {
 		log.Println("api_client_test.go: Starting HTTP server")
@@ -79,14 +128,10 @@ func TestAPIClient(t *testing.T) {
 	opt := &ApiClientOpt{
 		Uri: "http://127.0.0.1:8083/",
 		Jwt: &JwtHashedToken{
-			Secret:     string(jwtSecret),
-			Algortithm: "HS512",
-			ClaimsJson: fmt.Sprintf(
-				`{"iss":"myIssuer","sub":"mySubject","aud":"myAudience","nbf":%d,"exp":%d,"iat":%d,"jti":"b46107a8-4de4-f1f3-2500-aa749dc01229"}`,
-				now.Unix(),
-				now.Add(2*time.Hour).Unix(),
-				now.Unix(),
-			),
+			Secret:                 jwtSecret,
+			Algortithm:             "HS512",
+			Claims:                 map[string]any{"iss": "myIssuer", "sub": "mySubject", "aud": "myAudience", "jti": "b46107a8-4de4-f1f3-2500-aa749dc01229"},
+			ValidityDurationMinute: 1,
 		},
 		Insecure:            false,
 		Username:            "",

@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/trustbuilder/terraform-provider-restapi/fakeserver"
 )
 
 const (
@@ -16,72 +15,21 @@ provider "restapi" {
   uri       = "http://localhost:19090"
   test_path = "/api/object_list"
   debug     = true
+  jwt_hashed_token = {
+    claims_json = "{\"iss\": \"myIssuer\", \"sub\": \"mySubject\", \"aud\": \"myAudience\"}"
+    algorithm   = "HS256"
+    secret      = "NotTheMostSecuredSecret"
+	ValidityDurationMinute = 10
+  }
 }
 `
 )
-
-var testingDataObjects = map[string]map[string]any{
-	"1": {
-		"Test_case": "normal",
-		"Id":        "1",
-		"Revision":  1,
-		"Thing":     "potato",
-		"Is_cat":    false,
-		"Colors":    []string{"orange", "white"},
-		"Attrs": map[string]any{
-			"size":   "6 in",
-			"weight": "10 oz",
-		},
-	},
-	"2": {
-		"Test_case": "minimal",
-		"Id":        "2",
-		"Thing":     "fork",
-	},
-	"3": {
-		"Test_case": "no Colors",
-		"Id":        "3",
-		"Thing":     "paper",
-		"Is_cat":    false,
-		"Attrs": map[string]any{
-			"height": "8.5 in",
-			"width":  "11 in",
-		},
-	},
-	"4": {
-		"Test_case": "no Attrs",
-		"Id":        "4",
-		"Thing":     "nothing",
-		"Is_cat":    false,
-		"Colors":    []string{"none"},
-	},
-	"5": {
-		"Test_case": "pet",
-		"Id":        "5",
-		"Thing":     "cat",
-		"Is_cat":    true,
-		"Colors":    []string{"orange", "white"},
-		"Attrs": map[string]any{
-			"size":   "1.5 ft",
-			"weight": "15 lb",
-		},
-	},
-}
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
 // The factory function is called for each Terraform CLI command to create a provider
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"restapi": providerserver.NewProtocol6WithError(New("test")()),
-}
-
-func testAccPreCheck(t *testing.T) {
-	debug := false
-	svr := fakeserver.NewFakeServer(19090, testingDataObjects, true, debug, "")
-
-	t.Cleanup(func() {
-		svr.Shutdown()
-	})
 }
 
 // func TestResourceProvider_RequireTestPath(t *testing.T) {

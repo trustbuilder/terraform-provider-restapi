@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,9 +25,10 @@ import (
 )
 
 type JwtHashedToken struct {
-	Secret     string
-	Algortithm string
-	ClaimsJson string
+	Secret                 []byte
+	Algortithm             string
+	Claims                 map[string]any
+	ValidityDurationMinute int64
 }
 
 type ApiClientOpt struct {
@@ -93,18 +93,20 @@ type APIClient struct {
 	OauthConfig         *clientcredentials.Config
 }
 
-func createHashedJWT(jwt *JwtHashedToken) (string, error) {
-
-	signer := jwtgen.GetSigningMethod(jwt.Algortithm)
-	jsonClaims := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(jwt.ClaimsJson), &jsonClaims); err != nil {
-		return "", err
+func (jwt *JwtHashedToken) completeClaimValidityTime() {
+	if jwt.ValidityDurationMinute > 0 {
+		epoch := time.Now().Unix()
+		jwt.Claims["nbf"] = epoch
+		jwt.Claims["iat"] = epoch
+		jwt.Claims["exp"] = epoch + (jwt.ValidityDurationMinute * 60)
 	}
+}
 
-	token := jwtgen.NewWithClaims(signer, jwtgen.MapClaims(jsonClaims))
+func (jwt *JwtHashedToken) getSignedJwt() (string, error) {
+	signer := jwtgen.GetSigningMethod(jwt.Algortithm)
+	token := jwtgen.NewWithClaims(signer, jwtgen.MapClaims(jwt.Claims))
 
-	return token.SignedString([]byte(jwt.Secret))
-
+	return token.SignedString(jwt.Secret)
 }
 
 // NewAPIClient makes a new api client for RESTful calls.
@@ -255,7 +257,7 @@ func (client *APIClient) toString() string {
 	if client.Jwt != nil {
 		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
 		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
-		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.ClaimsJson))
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.Claims))
 	}
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.Insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.Username))
@@ -317,7 +319,8 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 	}
 
 	if client.Jwt != nil {
-		jwt, _ := createHashedJWT(client.Jwt)
+		client.Jwt.completeClaimValidityTime()
+		jwt, _ := client.Jwt.getSignedJwt()
 		req.Header.Set("Authorization", "Bearer "+jwt)
 	}
 
