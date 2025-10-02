@@ -2,11 +2,11 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -28,12 +28,13 @@ type tenantResource struct {
 
 // tenantResourceModel maps the resource schema data.
 type tenantResourceModel struct {
-	Headers     types.Map    `tfsdk:"headers"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	Id          types.String `tfsdk:"id"`
-	Tenant      types.String `tfsdk:"tenant"`
-	Path        types.String `tfsdk:"path"`
-	Data        types.String `tfsdk:"data"`
+	Headers        types.Map    `tfsdk:"headers"`
+	LastUpdated    types.String `tfsdk:"last_updated"`
+	Id             types.String `tfsdk:"id"`
+	Tenant         types.String `tfsdk:"tenant"`
+	RepoNamePrefix types.String `tfsdk:"repo_name_prefix"`
+	Path           types.String `tfsdk:"path"`
+	Data           types.String `tfsdk:"data"`
 }
 
 // NewtenantResource is a helper function to simplify the provider implementation.
@@ -61,7 +62,7 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Computed:    true,
 			},
 			"id": schema.StringAttribute{
-				Description: "The ID of this resource.",
+				Description: "The UUID of this resource.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -69,6 +70,13 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"tenant": schema.StringAttribute{
 				Description: "Tenant name used as identifier.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"repo_name_prefix": schema.StringAttribute{
+				Description: "Another identifier of the tenant.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -159,6 +167,59 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 func (r *tenantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 }
 
+func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	idParts := strings.Split(req.ID, ",")
+
+	if len(idParts) != 2 || idParts[0] == "" || idParts[1] == "" {
+		resp.Diagnostics.AddError(
+			"Unexpected Import Identifier",
+			fmt.Sprintf("Expected import identifier with format: path,tenant. Got: %q", req.ID),
+		)
+		return
+	}
+
+	tenantPath := idParts[0]
+	tenantName := idParts[1]
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("path"), tenantPath)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("tenant"), tenantName)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("last_updated"), time.Now().Format(time.RFC3339))...)
+
+	requestPath := strings.TrimRight(tenantPath, "/") + "?identifier=" + tenantName
+	//Get data from API
+	responseData, err := r.client.SendRequest("GET", requestPath, "")
+	if err != nil {
+		resp.Diagnostics.AddError("Import request error", fmt.Sprintf("Import request returned the error: %s on the path: %s", err, requestPath))
+		return
+	}
+	//Delete the array, to have only the object
+	mapData, err := apiclient.JsonDecodeApiResponse(responseData)
+	if err != nil {
+		resp.Diagnostics.AddError("Import request error", fmt.Sprintf("JSON decoding issue on the API response: %s", err))
+		return
+	}
+
+	resourceData, err := apiclient.JsonEncode(mapData)
+	if err != nil {
+		resp.Diagnostics.AddError("Import request error", fmt.Sprintf("JSON encoding issue on the resource's data: %s", err))
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("data"), resourceData)...)
+
+	id, ok := mapData["id"].(string)
+	if !ok {
+		resp.Diagnostics.AddError("Missing attribute in import API response", "Missing id attribute or it is not a string")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+	repoNamePrefix, ok := mapData["repo_name_prefix"].(string)
+	if !ok {
+		resp.Diagnostics.AddError("Missing attribute in import API response", "Missing repo_name_prefix attribute or it is not a string")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("repo_name_prefix"), repoNamePrefix)...)
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 
@@ -183,50 +244,26 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 func (m *tenantResourceModel) update_computed_fields(jsonData string) error {
-	//accept a json with an array of 1 object or an object
-	var data any
-	var mapData map[string]any
 	var id string
 	var tenant string
-	var ok bool
+	var repoNamePrefix string
+	var err error
 
-	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
+	id, err = apiclient.GetKeyValue(jsonData, "id")
+	if err != nil {
 		return err
 	}
-
-	switch v := data.(type) {
-	case map[string]any:
-		mapData, ok = data.(map[string]any)
-		if !ok {
-			return fmt.Errorf("type assertion from any to map[string]any fail")
-		}
-	case []any:
-		mapData, ok = data.([]any)[0].(map[string]any)
-		if !ok {
-			return fmt.Errorf("type assertion from any to []any fail")
-		}
-	default:
-		return fmt.Errorf("the json data is not an array, neither a map: %T", v)
+	tenant, err = apiclient.GetKeyValue(jsonData, "identifier")
+	if err != nil {
+		return err
 	}
-
-	if _, ok = mapData["id"]; !ok {
-		return fmt.Errorf("id not found")
-	}
-	id, ok = mapData["id"].(string)
-	if !ok {
-		return fmt.Errorf("id value can't be casted into string")
-	}
-
-	if _, ok = mapData["identifier"]; !ok {
-		return fmt.Errorf("identifier not found")
-	}
-	tenant, ok = mapData["identifier"].(string)
-	if !ok {
-		return fmt.Errorf("identifier value can't be casted into string")
+	repoNamePrefix, err = apiclient.GetKeyValue(jsonData, "repo_name_prefix")
+	if err != nil {
+		return err
 	}
 
 	m.Id = types.StringValue(id)
 	m.Tenant = types.StringValue(tenant)
-
+	m.RepoNamePrefix = types.StringValue(repoNamePrefix)
 	return nil
 }

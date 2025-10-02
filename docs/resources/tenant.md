@@ -26,6 +26,7 @@ Basic resource that does nothing other than interact with the Terraform state
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) The UUID of this resource.
 - `last_updated` (String) Resource update date in RFC850 format.
+- `repo_name_prefix` (String) Another identifier of the tenant.
 - `tenant` (String) Tenant name used as identifier.

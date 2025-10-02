@@ -12,54 +12,61 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/trustbuilder/terraform-provider-restapi/fakeserver"
+	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
 )
 
+// The identifier attribute contains the tenant.
 var tenantsDataObjects = map[string]map[string]any{
 	"1": {
-		"Test_case":  "normal",
-		"identifier": "tenant_1",
-		"Id":         "1",
-		"Revision":   1,
-		"Thing":      "potato",
-		"Is_cat":     false,
-		"Colors":     []string{"orange", "white"},
+		"Test_case":        "normal",
+		"identifier":       "tenant_1",
+		"id":               "1",
+		"repo_name_prefix": "tenant_1-sxxlh",
+		"Revision":         1,
+		"Thing":            "potato",
+		"Is_cat":           false,
+		"Colors":           []string{"orange", "white"},
 		"Attrs": map[string]any{
 			"size":   "6 in",
 			"weight": "10 oz",
 		},
 	},
 	"2": {
-		"Test_case":  "minimal",
-		"identifier": "tenant_2",
-		"Id":         "2",
-		"Thing":      "fork",
+		"Test_case":        "minimal",
+		"identifier":       "tenant_2",
+		"id":               "2",
+		"repo_name_prefix": "tenant_2-frohu",
+		"Thing":            "fork",
 	},
 	"3": {
-		"Test_case":  "no Colors",
-		"identifier": "tenant_name",
-		"Id":         "3",
-		"Thing":      "paper",
-		"Is_cat":     false,
+		"Test_case":        "no Colors",
+		"identifier":       "tenant_name",
+		"id":               "3",
+		"repo_name_prefix": "tenant_3-oyush",
+		"Thing":            "paper",
+		"Is_cat":           false,
 		"Attrs": map[string]any{
 			"height": "8.5 in",
 			"width":  "11 in",
 		},
 	},
 	"4": {
-		"Test_case":  "no Attrs",
-		"identifier": "tenant_4",
-		"Id":         "4",
-		"Thing":      "nothing",
-		"Is_cat":     false,
-		"Colors":     []string{"none"},
+		"Test_case":        "no Attrs",
+		"identifier":       "tenant_4",
+		"id":               "4",
+		"repo_name_prefix": "tenant_4-pzovb",
+		"Thing":            "nothing",
+		"Is_cat":           false,
+		"Colors":           []string{"none"},
 	},
 	"5": {
-		"Test_case":  "pet",
-		"identifier": "tenant_5",
-		"Id":         "5",
-		"Thing":      "cat",
-		"Is_cat":     true,
-		"Colors":     []string{"orange", "white"},
+		"Test_case":        "pet",
+		"identifier":       "tenant_5",
+		"id":               "5",
+		"repo_name_prefix": "tenant_1-ikczz",
+		"Thing":            "cat",
+		"Is_cat":           true,
+		"Colors":           []string{"orange", "white"},
 		"Attrs": map[string]any{
 			"size":   "1.5 ft",
 			"weight": "15 lb",
@@ -73,78 +80,6 @@ func testAccTenantPreCheck(t *testing.T) {
 
 	t.Cleanup(func() {
 		svr.Shutdown()
-	})
-}
-
-func TestAccTenantResource_basic(t *testing.T) {
-	var firstUpdatedTime string
-
-	resourceName := "restapi_tenant.api_data"
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccTenantPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			// Create and Read testing
-			{
-				Config: providerConfig + generateTenantResource("api_data", `{"Test_case": "newTest", "identifier": "tenant_6", "id": "6", "Thing": "basic"}`, nil),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("restapi_tenant.api_data", "id"),
-					resource.TestCheckResourceAttrSet("restapi_tenant.api_data", "last_updated"),
-					//Setup the last_updated change verification
-					func(s *terraform.State) error {
-						rs, ok := s.RootModule().Resources[resourceName]
-						if !ok {
-							return fmt.Errorf("Custom resource check: resource not found in state")
-						}
-						lastUpdated := rs.Primary.Attributes["last_updated"]
-						if lastUpdated == "" {
-							return fmt.Errorf("Custom resource check: last_updated is empty")
-						}
-						firstUpdatedTime = lastUpdated
-						return nil
-					},
-				),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("id"), knownvalue.StringExact("6")),
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("data"), knownvalue.StringExact(`{"Test_case": "newTest", "identifier": "tenant_6", "id": "6", "Thing": "basic"}`)),
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("last_updated"), knownvalue.StringRegexp(regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$`))),
-				},
-			},
-			// Update and Read testing
-			{
-				Config: providerConfig + generateTenantResource("api_data", `{"Test_case": "newTest", "identifier": "tenant_6", "id": "6", "Thing": "basic", "additional_field": "new API feature"}`, nil),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("restapi_tenant.api_data", "id"),
-					// Verify dynamic values have any value set in the state.
-					resource.TestCheckResourceAttrSet("restapi_tenant.api_data", "last_updated"),
-					//Verify that the last_updated has changed
-					func(s *terraform.State) error {
-						rs, ok := s.RootModule().Resources[resourceName]
-						if !ok {
-							return fmt.Errorf("Custom resource check: resource not found in state")
-						}
-						lastUpdated := rs.Primary.Attributes["last_updated"]
-						if lastUpdated == firstUpdatedTime {
-							return fmt.Errorf("Custom resource check: expected last_updated to change, but it did not")
-						}
-						return nil
-					},
-				),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("id"), knownvalue.StringExact("6")),
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
-					statecheck.ExpectKnownValue("restapi_tenant.api_data", tfjsonpath.New("data"), knownvalue.StringExact(`{"Test_case": "newTest", "identifier": "tenant_6", "id": "6", "Thing": "basic", "additional_field": "new API feature"}`)),
-				},
-			},
-			// Returns API error when the API object to create already exists
-			{
-				Config:      providerConfig + generateTenantResource("error", `{"id":"1"}`, map[string]any{}),
-				ExpectError: regexp.MustCompile(".*Create request error.*"),
-			},
-			// Delete testing automatically occurs in TestCase
-		},
 	})
 }
 
@@ -167,4 +102,133 @@ func generateTenantResource(name string, data string, params map[string]any) str
 		resource "restapi_tenant" "%s" {
 		%s
 	}`, name, strConfig)
+}
+
+// func generateTenantImport(resourceName string, importID string) string {
+// 	return fmt.Sprintf(`
+// 		import {
+// 		to = restapi_tenant.%s
+// 		id = "%s"
+// 	}`, resourceName, importID)
+// }
+
+func TestAccTenantResource_basic(t *testing.T) {
+	var firstUpdatedTime string
+	var initialDataMap map[string]any
+	var modifiedDataMap map[string]any
+	var initialDataString string
+	var modifiedDataString string
+	var err error
+
+	resourceName := "api_data"
+	resourceFulleName := "restapi_tenant." + resourceName
+	initialDataMap = map[string]any{
+		"Test_case":        "newTest",
+		"identifier":       "tenant_6",
+		"id":               "6",
+		"repo_name_prefix": "tenant_6-tclas",
+		"Thing":            "basic",
+	}
+	initialDataString, err = apiclient.JsonEncode(initialDataMap)
+	if err != nil {
+		t.Errorf("test's initial data JSON encoding error: %s", err)
+	}
+
+	modifiedDataMap = make(map[string]any)
+	for k, v := range initialDataMap {
+		modifiedDataMap[k] = v
+	}
+	modifiedDataMap["additional_field"] = "new API feature"
+	modifiedDataString, err = apiclient.JsonEncode(modifiedDataMap)
+	if err != nil {
+		t.Errorf("test's modified data JSON encoding error: %s", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccTenantPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: providerConfig + generateTenantResource(resourceName, initialDataString, nil),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceFulleName, "id"),
+					resource.TestCheckResourceAttrSet(resourceFulleName, "last_updated"),
+					//Setup the last_updated change verification
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources[resourceFulleName]
+						if !ok {
+							t.Error("Custom resource check: resource not found in state")
+						}
+						lastUpdated := rs.Primary.Attributes["last_updated"]
+						if lastUpdated == "" {
+							t.Error("Custom resource check: last_updated is empty")
+						}
+						firstUpdatedTime = lastUpdated
+						return nil
+					},
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("id"), knownvalue.StringExact("6")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("repo_name_prefix"), knownvalue.StringExact("tenant_6-tclas")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.StringExact(initialDataString)),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("last_updated"), knownvalue.StringRegexp(regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$`))),
+				},
+			},
+			// Update and Read testing
+			{
+				Config: providerConfig + generateTenantResource(resourceName, modifiedDataString, nil),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceFulleName, "id"),
+					// Verify dynamic values have any value set in the state.
+					resource.TestCheckResourceAttrSet(resourceFulleName, "last_updated"),
+					//Verify that the last_updated has changed
+					func(s *terraform.State) error {
+						rs, ok := s.RootModule().Resources[resourceFulleName]
+						if !ok {
+							return fmt.Errorf("Custom resource check: resource not found in state")
+						}
+						lastUpdated := rs.Primary.Attributes["last_updated"]
+						if lastUpdated == firstUpdatedTime {
+							return fmt.Errorf("Custom resource check: expected last_updated to change, but it did not")
+						}
+						return nil
+					},
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("id"), knownvalue.StringExact("6")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("repo_name_prefix"), knownvalue.StringExact("tenant_6-tclas")),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.StringExact(modifiedDataString)),
+				},
+			},
+			// Returns API error when the API object to create already exists
+			{
+				Config:      providerConfig + generateTenantResource("error", `{"id":"1"}`, map[string]any{}),
+				ExpectError: regexp.MustCompile(".*Create request error.*"),
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+}
+
+func TestAccTenantResource_importBlock(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccTenantPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Configure an existing API data
+			{
+				Config: providerConfig + generateTenantResource("api_data", `{"Test_case":"import","identifier":"tenant_7","id":"7","repo_name_prefix":"tenant_7-uvztr","Thing":"import_block"}`, nil),
+			},
+			{
+				ResourceName:    "restapi_tenant.api_data",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   "/api/objects,tenant_7",
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
 }
