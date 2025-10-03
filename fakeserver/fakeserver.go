@@ -137,11 +137,28 @@ func (svr *Fakeserver) handleAPIObject(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
 		}
+	} else if path == "/api/objects" && r.Method == "GET" && len(r.URL.Query()) != 0 {
+		// filter by params
+		result := make([]map[string]any, 0)
+
+		for _, hash := range svr.objects {
+			for key, value := range hash {
+				if r.URL.Query().Has(key) && r.URL.Query().Get(key) == value {
+					result = append(result, hash)
+				}
+			}
+		}
+		b, _ := json.Marshal(result)
+		if _, err := w.Write(b); err != nil {
+			log.Fatalf("fakeserver.go: Can not write the json in http response to %s: %s\n", path, err)
+		}
+		return
+
 	} else if path == "/api/object_list" && r.Method == "GET" {
 		/* Provide a URL similar to /api/objects that will also show the number of results
 		   as if a search was performed (which just returns all objects */
-		tmp := make([]map[string]interface{}, 0)
-		result := map[string]interface{}{
+		tmp := make([]map[string]any, 0)
+		result := map[string]any{
 			"results": true,
 			"pages":   1,
 			"page":    1,
@@ -162,7 +179,7 @@ func (svr *Fakeserver) handleAPIObject(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
-	} else if path == "/api/objects" && r.Method == "GET" {
+	} else if path == "	" && r.Method == "GET" {
 		result := make([]map[string]interface{}, 0)
 		for _, hash := range svr.objects {
 			result = append(result, hash)
@@ -213,12 +230,20 @@ func (svr *Fakeserver) handleAPIObject(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-
-		/* Overwrite our stored test object */
-		if svr.debug {
-			log.Printf("fakeserver.go: Overwriting %s with new data:%+v\n", id, obj)
+		_, ok := svr.objects[id]
+		/* Overwrite our stored test object only with the PATCH method*/
+		if (r.Method == "PATCH" && ok) || (r.Method == "POST" && !ok) {
+			if svr.debug {
+				log.Printf("fakeserver.go: Writing %s with new data:%+v\n", id, obj)
+			}
+			svr.objects[id] = obj
+		} else if r.Method == "POST" && ok {
+			http.Error(w, "POST sent with an existing id. Cannot persist this!", http.StatusBadRequest)
+			return
+		} else if r.Method == "PATCH" && !ok {
+			http.Error(w, "PATCH sent with an unexisting id. Cannot persist this!", http.StatusBadRequest)
+			return
 		}
-		svr.objects[id] = obj
 
 		/* Coax the data we were sent back to JSON and send it to the user */
 		b, _ := json.Marshal(obj)

@@ -7,13 +7,20 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/trustbuilder/terraform-provider-restapi/fakeserver"
 )
 
 const (
 	providerConfig = `
 provider "restapi" {
-  uri = "http://localhost:19090/api/object_list"
+  uri       = "http://localhost:19090"
+  test_path = "/api/object_list"
+  debug     = true
+  jwt_hashed_token = {
+    claims_json = "{\"iss\": \"myIssuer\", \"sub\": \"mySubject\", \"aud\": \"myAudience\"}"
+    algorithm   = "HS256"
+    secret      = "NotTheMostSecuredSecret"
+	ValidityDurationMinute = 10
+  }
 }
 `
 )
@@ -23,17 +30,6 @@ provider "restapi" {
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"restapi": providerserver.NewProtocol6WithError(New("test")()),
-}
-
-func testAccPreCheck(t *testing.T) {
-	debug := false
-	apiServerObjects := make(map[string]map[string]interface{})
-
-	svr := fakeserver.NewFakeServer(19090, apiServerObjects, true, debug, "")
-
-	t.Cleanup(func() {
-		svr.Shutdown()
-	})
 }
 
 // func TestResourceProvider_RequireTestPath(t *testing.T) {
