@@ -89,6 +89,7 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"data": schema.StringAttribute{
 				Description: "Valid JSON object that this provider will manage with the API server.",
 				Required:    true,
+				WriteOnly:   true,
 			},
 		},
 	}
@@ -97,6 +98,7 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 // Create a new resource.
 func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var planResource tenantResourceModel
+	var dataAttribute types.String
 
 	diags := req.Plan.Get(ctx, &planResource)
 	resp.Diagnostics.Append(diags...)
@@ -104,7 +106,21 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	responseData, err := r.client.SendRequest("POST", planResource.Path.ValueString(), planResource.Data.ValueString())
+	diags = req.Config.GetAttribute(ctx, path.Root("data"), &dataAttribute)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if dataAttribute.IsNull() || dataAttribute.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"Missing data attribute",
+			"The 'data' attribute must be provided.",
+		)
+		return
+	}
+
+	responseData, err := r.client.SendRequest("POST", planResource.Path.ValueString(), dataAttribute.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Create request error", fmt.Sprintf("Creation request returned the error: %s", err))
 		return
@@ -146,17 +162,26 @@ func (r *tenantResource) Read(ctx context.Context, req resource.ReadRequest, res
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var plan tenantResourceModel
-	diags := req.Plan.Get(ctx, &plan)
+	var planResource tenantResourceModel
+	diags := req.Plan.Get(ctx, &planResource)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
+	planResource.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
+	state := tenantResourceModel{
+		Headers:        planResource.Headers,
+		LastUpdated:    planResource.LastUpdated,
+		Id:             planResource.Id,
+		Tenant:         planResource.Tenant,
+		RepoNamePrefix: planResource.RepoNamePrefix,
+		Path:           planResource.Path,
+		//omit Data
+	}
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, plan)
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -198,13 +223,6 @@ func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportSta
 		resp.Diagnostics.AddError("Import request error", fmt.Sprintf("JSON decoding issue on the API response: %s", err))
 		return
 	}
-
-	resourceData, err := apiclient.JsonEncode(mapData)
-	if err != nil {
-		resp.Diagnostics.AddError("Import request error", fmt.Sprintf("JSON encoding issue on the resource's data: %s", err))
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("data"), resourceData)...)
 
 	id, ok := mapData["id"].(string)
 	if !ok {

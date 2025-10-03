@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
@@ -104,14 +105,6 @@ func generateTenantResource(name string, data string, params map[string]any) str
 	}`, name, strConfig)
 }
 
-// func generateTenantImport(resourceName string, importID string) string {
-// 	return fmt.Sprintf(`
-// 		import {
-// 		to = restapi_tenant.%s
-// 		id = "%s"
-// 	}`, resourceName, importID)
-// }
-
 func TestAccTenantResource_basic(t *testing.T) {
 	var firstUpdatedTime string
 	var initialDataMap map[string]any
@@ -151,6 +144,11 @@ func TestAccTenantResource_basic(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: providerConfig + generateTenantResource(resourceName, initialDataString, nil),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceFulleName, "id"),
 					resource.TestCheckResourceAttrSet(resourceFulleName, "last_updated"),
@@ -172,13 +170,18 @@ func TestAccTenantResource_basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("id"), knownvalue.StringExact("6")),
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("repo_name_prefix"), knownvalue.StringExact("tenant_6-tclas")),
-					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.StringExact(initialDataString)),
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("last_updated"), knownvalue.StringRegexp(regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$`))),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
 				},
 			},
 			// Update and Read testing
 			{
 				Config: providerConfig + generateTenantResource(resourceName, modifiedDataString, nil),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
+					},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceFulleName, "id"),
 					// Verify dynamic values have any value set in the state.
@@ -187,11 +190,11 @@ func TestAccTenantResource_basic(t *testing.T) {
 					func(s *terraform.State) error {
 						rs, ok := s.RootModule().Resources[resourceFulleName]
 						if !ok {
-							return fmt.Errorf("Custom resource check: resource not found in state")
+							t.Error("Custom resource check: resource not found in state")
 						}
 						lastUpdated := rs.Primary.Attributes["last_updated"]
-						if lastUpdated == firstUpdatedTime {
-							return fmt.Errorf("Custom resource check: expected last_updated to change, but it did not")
+						if lastUpdated != firstUpdatedTime {
+							t.Error("Custom resource check: expected last_updated not changed, but it did")
 						}
 						return nil
 					},
@@ -200,7 +203,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("id"), knownvalue.StringExact("6")),
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("tenant"), knownvalue.StringExact("tenant_6")),
 					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("repo_name_prefix"), knownvalue.StringExact("tenant_6-tclas")),
-					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.StringExact(modifiedDataString)),
+					statecheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
 				},
 			},
 			// Returns API error when the API object to create already exists
@@ -213,7 +216,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 	})
 }
 
-func TestAccTenantResource_importBlock(t *testing.T) {
+func TestAccTenantResource_import(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccTenantPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -226,6 +229,12 @@ func TestAccTenantResource_importBlock(t *testing.T) {
 				ResourceName:    "restapi_tenant.api_data",
 				ImportState:     true,
 				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   "/api/objects,tenant_7",
+			},
+			{
+				ResourceName:    "restapi_tenant.api_data",
+				ImportState:     true,
+				ImportStateKind: resource.ImportCommandWithID,
 				ImportStateId:   "/api/objects,tenant_7",
 			},
 			// Delete testing automatically occurs in TestCase

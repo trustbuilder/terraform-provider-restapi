@@ -17,7 +17,9 @@ Basic resource that does nothing other than interact with the Terraform state
 
 ### Required
 
-- `data` (String) Valid JSON object that this provider will manage with the API server.
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
+- `data` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Valid JSON object that this provider will manage with the API server.
 - `path` (String) The API path on top of the base URL set in the provider that represents objects of this type on the API server.
 
 ### Optional
