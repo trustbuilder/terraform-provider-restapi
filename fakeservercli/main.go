@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	fakeserver "github.com/trustbuilder/terraform-provider-restapi/fakeserver"
+	fakeserver "github.com/trustbuilder/terraform-provider-trustbuilder/fakeserver"
 )
 
 func main() {
