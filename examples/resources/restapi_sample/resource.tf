@@ -1,5 +1,4 @@
-resource "restapi_sample" "test" {
-  headers = {
-    "User-agent" = "restapi-agent"
-  }
+resource "trustbuilder_tenant" "test" {
+  path = "/tenants"
+  data = jsonencode(local.tenant_body)
 }

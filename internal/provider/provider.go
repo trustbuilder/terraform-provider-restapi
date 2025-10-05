@@ -17,14 +17,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
-	"github.com/trustbuilder/terraform-provider-restapi/internal/envvar"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/apiclient"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/envvar"
 )
 
-var _ provider.Provider = &RestapiProvider{}
+var _ provider.Provider = &TrustbuilderProvider{}
 
 // Defines the provider implementation.
-type RestapiProvider struct {
+type TrustbuilderProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
@@ -33,14 +33,14 @@ type RestapiProvider struct {
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &RestapiProvider{
+		return &TrustbuilderProvider{
 			version: version,
 		}
 	}
 }
 
 // Describes the provider data model.
-type RestapiProviderModel struct {
+type TrustbuilderProviderModel struct {
 	URI            types.String `tfsdk:"uri"`
 	Headers        types.Map    `tfsdk:"headers"`
 	JwtHashedToken types.Object `tfsdk:"jwt_hashed_token"`
@@ -56,16 +56,16 @@ type JwtHashedTokenModel struct {
 	ValidityDurationMinute types.Int64  `tfsdk:"validity_duration_minute"`
 }
 
-func (p *RestapiProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "restapi"
+func (p *TrustbuilderProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "trustbuilder"
 	resp.Version = p.version
 }
 
-func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *TrustbuilderProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"uri": schema.StringAttribute{
-				Description: "URI of the REST API endpoint. This serves as the base of all requests.",
+				Description: "URI of the API endpoint. This serves as the base of all requests.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(10, 2048),
@@ -99,7 +99,7 @@ func (p *RestapiProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Optional:    true,
 			},
 		},
-		Description: "Provider managing REST API queries. The only authenthication way is JWT.",
+		Description: "Provider managing Trustbuilder's entities.",
 	}
 }
 
@@ -128,15 +128,15 @@ func jwtHashedTokenResourceSchema() map[string]schema.Attribute {
 	}
 }
 
-func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+func (p *TrustbuilderProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 
-	var config RestapiProviderModel
+	var config TrustbuilderProviderModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	uri := os.Getenv(envvar.RestApiUri)
+	uri := os.Getenv(envvar.TrustbuilderUri)
 
 	if !config.URI.IsNull() {
 		uri = config.URI.ValueString()
@@ -149,7 +149,7 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 			path.Root("uri"),
 			"The uri is mandatory",
 			"The provider has unknown configuration value for the uri. "+
-				"Set the uri value in the configuration or use the "+envvar.RestApiUri+" environment variable. "+
+				"Set the uri value in the configuration or use the "+envvar.TrustbuilderUri+" environment variable. "+
 				"If either is already set, ensure the value is not empty.",
 		)
 	}
@@ -185,7 +185,7 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 			return
 		}
 
-		jwtSecret := os.Getenv(envvar.RestApiJwtSecret)
+		jwtSecret := os.Getenv(envvar.TrustbuilderJwtSecret)
 		if !jwtHashedTokenModel.Secret.IsNull() {
 			jwtSecret = jwtHashedTokenModel.Secret.ValueString()
 			tflog.Debug(ctx, "jwtSecret content: "+jwtSecret)
@@ -196,7 +196,7 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 				path.Root("jwt_hashed_token.secret"),
 				"The JWT secret is mandatory when jwt_hashed_token is defined",
 				"The provider has unknown configuration value for the JWT secret. "+
-					"Set the secret value in the jwt_hashed_token attribute or use the "+envvar.RestApiJwtSecret+" environment variable. "+
+					"Set the secret value in the jwt_hashed_token attribute or use the "+envvar.TrustbuilderJwtSecret+" environment variable. "+
 					"If either is already set, ensure the value is not empty.",
 			)
 		}
@@ -243,12 +243,12 @@ func (p *RestapiProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 }
 
-func (p *RestapiProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *TrustbuilderProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewTenantResource,
 	}
 }
 
-func (p *RestapiProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *TrustbuilderProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return nil
 }

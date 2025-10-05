@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/apiclient"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

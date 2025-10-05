@@ -6,5 +6,5 @@ partition: tf-ecosystem
 summary:
   owner: trustbuilder
   description: |
-    Provider handling REST API call with JWT authorization
+    Provider managing the trustbuilder's entities
   visibility: public
