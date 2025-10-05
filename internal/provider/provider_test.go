@@ -11,7 +11,7 @@ import (
 
 const (
 	providerConfig = `
-provider "restapi" {
+provider "trustbuilder" {
   uri       = "http://localhost:19090"
   test_path = "/api/object_list"
   debug     = true
@@ -29,7 +29,7 @@ provider "restapi" {
 // The factory function is called for each Terraform CLI command to create a provider
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"restapi": providerserver.NewProtocol6WithError(New("test")()),
+	"trustbuilder": providerserver.NewProtocol6WithError(New("test")()),
 }
 
 // func TestResourceProvider_RequireTestPath(t *testing.T) {

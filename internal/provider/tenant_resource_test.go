@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
-	"github.com/trustbuilder/terraform-provider-restapi/fakeserver"
-	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/fakeserver"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/apiclient"
 )
 
 // The identifier attribute contains the tenant.
@@ -101,7 +101,7 @@ func generateTenantResource(name string, data string, params map[string]any) str
 	}
 
 	return fmt.Sprintf(`
-		resource "restapi_tenant" "%s" {
+		resource "trustbuilder_tenant" "%s" {
 		%s
 	}`, name, strConfig)
 }
@@ -115,7 +115,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 	var err error
 
 	resourceName := "api_data"
-	resourceFulleName := "restapi_tenant." + resourceName
+	resourceFulleName := "trustbuilder_tenant." + resourceName
 	initialDataMap = map[string]any{
 		"Test_case":        "newTest",
 		"identifier":       "tenant_6",
@@ -221,22 +221,26 @@ func TestAccTenantResource_basic(t *testing.T) {
 }
 
 func TestAccTenantResource_import(t *testing.T) {
+	resourceName := "api_data"
+	resourceFulleName := "trustbuilder_tenant." + resourceName
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccTenantPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Configure an existing API data
 			{
-				Config: providerConfig + generateTenantResource("api_data", `{"Test_case":"import","identifier":"tenant_7","id":"7","repo_name_prefix":"tenant_7-uvztr","Thing":"import_block"}`, nil),
+				Config: providerConfig +
+					generateTenantResource(resourceName, `{"Test_case":"import","identifier":"tenant_7","id":"7","repo_name_prefix":"tenant_7-uvztr","Thing":"import_block"}`, nil),
 			},
 			{
-				ResourceName:    "restapi_tenant.api_data",
+				ResourceName:    resourceFulleName,
 				ImportState:     true,
 				ImportStateKind: resource.ImportBlockWithID,
 				ImportStateId:   "/api/objects,tenant_7",
 			},
 			{
-				ResourceName:    "restapi_tenant.api_data",
+				ResourceName:    resourceFulleName,
 				ImportState:     true,
 				ImportStateKind: resource.ImportCommandWithID,
 				ImportStateId:   "/api/objects,tenant_7",
