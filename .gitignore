@@ -39,4 +39,4 @@ website/vendor
 
 # compiled binary
 fakeservercli/fakeservercli
-terraform-provider-restapi
+terraform-provider-trustbuilder
