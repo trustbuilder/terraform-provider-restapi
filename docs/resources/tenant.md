@@ -3,12 +3,12 @@
 page_title: "restapi_tenant Resource - restapi"
 subcategory: ""
 description: |-
-  Basic resource that does nothing other than interact with the Terraform state
+  Resource managing the creation of a tenant.
 ---
 
 # restapi_tenant (Resource)
 
-Basic resource that does nothing other than interact with the Terraform state
+Resource managing the creation of a tenant.
 
 
 
