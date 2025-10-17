@@ -6,10 +6,10 @@ provider "trustbuilder" {
       scope = [
         "scope:read",
       ]
-      iss       = "issuer"
-      algorithm = "HS256"
+      iss = "issuer"
     })
     secret                     = local.jwt_secret
+    algorithm                  = "HS256"
     validation_duration_minute = 10
   }
 }
