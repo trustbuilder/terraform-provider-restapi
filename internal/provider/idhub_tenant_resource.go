@@ -12,22 +12,22 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
+	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/apiclient"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource = &tenantResource{}
+	_ resource.Resource = &idhubTenantResource{}
 )
 
-// tenantResource is the resource implementation.
-type tenantResource struct {
+// idhubTenantResource is the resource implementation.
+type idhubTenantResource struct {
 	url    string
 	client *apiclient.APIClient
 }
 
-// tenantResourceModel maps the resource schema data.
-type tenantResourceModel struct {
+// idhubTenantResourceModel maps the resource schema data.
+type idhubTenantResourceModel struct {
 	Headers        types.Map    `tfsdk:"headers"`
 	LastUpdated    types.String `tfsdk:"last_updated"`
 	Id             types.String `tfsdk:"id"`
@@ -39,18 +39,18 @@ type tenantResourceModel struct {
 
 // NewtenantResource is a helper function to simplify the provider implementation.
 func NewTenantResource() resource.Resource {
-	return &tenantResource{}
+	return &idhubTenantResource{}
 }
 
 // Metadata returns the resource type name.
-func (r *tenantResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_tenant"
+func (r *idhubTenantResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_idhub_tenant"
 }
 
 // Schema defines the schema for the resource.
-func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *idhubTenantResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Resource managing the creation of a tenant.",
+		Description: "Resource managing the creation of an idhub tenant.",
 		Attributes: map[string]schema.Attribute{
 			"headers": schema.MapAttribute{
 				Description: "A map of header names and values to set on all outbound requests.",
@@ -96,8 +96,8 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 }
 
 // Create a new resource.
-func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var planResource tenantResourceModel
+func (r *idhubTenantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var planResource idhubTenantResourceModel
 	var dataAttribute types.String
 
 	diags := req.Plan.Get(ctx, &planResource)
@@ -140,8 +140,8 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 // Read resource information.
-func (r *tenantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var stateResource tenantResourceModel
+func (r *idhubTenantResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var stateResource idhubTenantResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &stateResource)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -160,9 +160,9 @@ func (r *tenantResource) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *idhubTenantResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var planResource tenantResourceModel
+	var planResource idhubTenantResourceModel
 	diags := req.Plan.Get(ctx, &planResource)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -170,7 +170,7 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	planResource.LastUpdated = types.StringValue(time.Now().Format(time.RFC3339))
-	state := tenantResourceModel{
+	state := idhubTenantResourceModel{
 		Headers:        planResource.Headers,
 		LastUpdated:    planResource.LastUpdated,
 		Id:             planResource.Id,
@@ -189,10 +189,10 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *tenantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *idhubTenantResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 }
 
-func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *idhubTenantResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	idParts := strings.Split(req.ID, ",")
 
 	if len(idParts) != 2 || idParts[0] == "" || idParts[1] == "" {
@@ -239,7 +239,7 @@ func (r *tenantResource) ImportState(ctx context.Context, req resource.ImportSta
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *idhubTenantResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
@@ -261,7 +261,7 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.url = client.Uri
 }
 
-func (m *tenantResourceModel) update_computed_fields(jsonData string) error {
+func (m *idhubTenantResourceModel) update_computed_fields(jsonData string) error {
 	var id string
 	var tenant string
 	var repoNamePrefix string

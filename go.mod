@@ -1,4 +1,4 @@
-module github.com/trustbuilder/terraform-provider-restapi
+module github.com/trustbuilder/terraform-provider-trustbuilder
 
 go 1.24.0
 
