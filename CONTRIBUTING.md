@@ -27,12 +27,15 @@ OR:
     asdf set -u terraform latest
     asdf install
     ```
-2. Define the environment variable `GOBIN` if you want the another default Go binary location elsewhere that `~/go/bin`
+2. If golang is installed with asdf:
+    ```bash
+    export GOBIN="$HOME/go/bin"
+    ```
 3. Use the provider development version
     You can plan and apply locally with the version in development of this provider with:
     ```bash
     make install
-    export TF_CLI_CONFIG_FILE=./dev.tfrc
+    export TF_CLI_CONFIG_FILE=$PWD/dev.tfrc
     ```
   It avoids to modify directly your `~/.terraformrc` file
 4. pre-commit

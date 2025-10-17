@@ -17,8 +17,10 @@ import (
 	"github.com/trustbuilder/terraform-provider-trustbuilder/internal/apiclient"
 )
 
+var idhubTenantResourceName = "trustbuilder_idhub_tenant"
+
 // The identifier attribute contains the tenant.
-var tenantsDataObjects = map[string]map[string]any{
+var idhubTenantsDataObjects = map[string]map[string]any{
 	"1": {
 		"Test_case":        "normal",
 		"identifier":       "tenant_1",
@@ -76,16 +78,16 @@ var tenantsDataObjects = map[string]map[string]any{
 	},
 }
 
-func testAccTenantPreCheck(t *testing.T) {
+func testAccIdhubTenantPreCheck(t *testing.T) {
 	debug := false
-	svr := fakeserver.NewFakeServer(19090, tenantsDataObjects, true, debug, "")
+	svr := fakeserver.NewFakeServer(19090, idhubTenantsDataObjects, true, debug, "")
 
 	t.Cleanup(func() {
 		svr.Shutdown()
 	})
 }
 
-func generateTenantResource(name string, data string, params map[string]any) string {
+func generateIdhubTenantResource(name string, data string, params map[string]any) string {
 	strData, _ := json.Marshal(data)
 	config := []string{
 		`path = "/api/objects"`,
@@ -101,12 +103,12 @@ func generateTenantResource(name string, data string, params map[string]any) str
 	}
 
 	return fmt.Sprintf(`
-		resource "trustbuilder_tenant" "%s" {
+		resource "%s" "%s" {
 		%s
-	}`, name, strConfig)
+	}`, idhubTenantResourceName, name, strConfig)
 }
 
-func TestAccTenantResource_basic(t *testing.T) {
+func TestAccIdhubTenantResource_basic(t *testing.T) {
 	var firstUpdatedTime string
 	var initialDataMap map[string]any
 	var modifiedDataMap map[string]any
@@ -115,7 +117,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 	var err error
 
 	resourceName := "api_data"
-	resourceFulleName := "trustbuilder_tenant." + resourceName
+	resourceFulleName := idhubTenantResourceName + "." + resourceName
 	initialDataMap = map[string]any{
 		"Test_case":        "newTest",
 		"identifier":       "tenant_6",
@@ -139,7 +141,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 	}
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccTenantPreCheck(t) },
+		PreCheck:                 func() { testAccIdhubTenantPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
 			tfversion.RequireAbove(tfversion.Version1_11_0),
@@ -147,7 +149,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + generateTenantResource(resourceName, initialDataString, nil),
+				Config: providerConfig + generateIdhubTenantResource(resourceName, initialDataString, nil),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
@@ -180,7 +182,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + generateTenantResource(resourceName, modifiedDataString, nil),
+				Config: providerConfig + generateIdhubTenantResource(resourceName, modifiedDataString, nil),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectKnownValue(resourceFulleName, tfjsonpath.New("data"), knownvalue.Null()),
@@ -212,7 +214,7 @@ func TestAccTenantResource_basic(t *testing.T) {
 			},
 			// Returns API error when the API object to create already exists
 			{
-				Config:      providerConfig + generateTenantResource("error", `{"id":"1"}`, map[string]any{}),
+				Config:      providerConfig + generateIdhubTenantResource("error", `{"id":"1"}`, map[string]any{}),
 				ExpectError: regexp.MustCompile(".*Create request error.*"),
 			},
 			// Delete testing automatically occurs in TestCase
@@ -220,18 +222,18 @@ func TestAccTenantResource_basic(t *testing.T) {
 	})
 }
 
-func TestAccTenantResource_import(t *testing.T) {
+func TestAccIdhubTenantResource_import(t *testing.T) {
 	resourceName := "api_data"
-	resourceFulleName := "trustbuilder_tenant." + resourceName
+	resourceFulleName := idhubTenantResourceName + "." + resourceName
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccTenantPreCheck(t) },
+		PreCheck:                 func() { testAccIdhubTenantPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Configure an existing API data
 			{
 				Config: providerConfig +
-					generateTenantResource(resourceName, `{"Test_case":"import","identifier":"tenant_7","id":"7","repo_name_prefix":"tenant_7-uvztr","Thing":"import_block"}`, nil),
+					generateIdhubTenantResource(resourceName, `{"Test_case":"import","identifier":"tenant_7","id":"7","repo_name_prefix":"tenant_7-uvztr","Thing":"import_block"}`, nil),
 			},
 			{
 				ResourceName:    resourceFulleName,
