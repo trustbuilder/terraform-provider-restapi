@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 	"github.com/trustbuilder/terraform-provider-restapi/fakeserver"
 	"github.com/trustbuilder/terraform-provider-restapi/internal/apiclient"
 )
@@ -140,6 +141,9 @@ func TestAccTenantResource_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccTenantPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.RequireAbove(tfversion.Version1_11_0),
+		},
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{

@@ -50,7 +50,7 @@ func (r *tenantResource) Metadata(_ context.Context, req resource.MetadataReques
 // Schema defines the schema for the resource.
 func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Basic resource that does nothing other than interact with the Terraform state",
+		Description: "Resource managing the creation of a tenant.",
 		Attributes: map[string]schema.Attribute{
 			"headers": schema.MapAttribute{
 				Description: "A map of header names and values to set on all outbound requests.",
