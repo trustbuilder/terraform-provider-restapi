@@ -26,9 +26,10 @@ import (
 )
 
 type JwtHashedToken struct {
-	Secret     string
-	Algortithm string
-	ClaimsJson string
+	Secret                 []byte
+	Algortithm             string
+	Claims                 map[string]any
+	ValidityDurationMinute int64
 }
 
 type ApiClientOpt struct {
@@ -93,18 +94,85 @@ type APIClient struct {
 	OauthConfig         *clientcredentials.Config
 }
 
-func createHashedJWT(jwt *JwtHashedToken) (string, error) {
+func (jwt *JwtHashedToken) completeClaimValidityTime() {
+	if jwt.ValidityDurationMinute > 0 {
+		epoch := time.Now().Unix()
+		jwt.Claims["nbf"] = epoch
+		jwt.Claims["iat"] = epoch
+		jwt.Claims["exp"] = epoch + (jwt.ValidityDurationMinute * 60)
+	}
+}
 
+func (jwt *JwtHashedToken) getSignedJwt() (string, error) {
 	signer := jwtgen.GetSigningMethod(jwt.Algortithm)
-	jsonClaims := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(jwt.ClaimsJson), &jsonClaims); err != nil {
-		return "", err
+	token := jwtgen.NewWithClaims(signer, jwtgen.MapClaims(jwt.Claims))
+
+	return token.SignedString(jwt.Secret)
+}
+
+// Returns a map from the given string in JSON format.
+// If the JSON is an array, only the first object is converted.
+func JsonDecodeApiResponse(jsonData string) (map[string]any, error) {
+	var data any
+	var mapData map[string]any
+	var ok bool
+
+	if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
+		return nil, err
 	}
 
-	token := jwtgen.NewWithClaims(signer, jwtgen.MapClaims(jsonClaims))
+	switch v := data.(type) {
+	case map[string]any:
+		mapData, ok = data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("type assertion from any to map[string]any failed")
+		}
+	case []any:
+		if array, ok := data.([]any); !ok {
+			return nil, fmt.Errorf("type assertion from any to []any failed")
+		} else if len(array) > 1 {
+			return nil, fmt.Errorf("unmarshalApiResponse() can't manage a JSON with an array length > 1")
+		}
+		mapData, ok = data.([]any)[0].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("type assertion to map[string]any of the first array element failed")
+		}
+	default:
+		return nil, fmt.Errorf("the json data is not an array, neither a map: %T", v)
+	}
 
-	return token.SignedString([]byte(jwt.Secret))
+	return mapData, nil
+}
 
+func JsonEncode(data map[string]any) (string, error) {
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf("the data can't be encoded into JSON: %v", data)
+	}
+	return string(jsonBytes), err
+}
+
+// If the value of the key is not a string, returns an error.
+func GetKeyValue(jsonData string, key string) (string, error) {
+	var ok bool
+	var value any
+	var result string
+
+	mapData, err := JsonDecodeApiResponse(jsonData)
+	if err != nil {
+		return "", err
+	}
+	value, ok = mapData[key]
+	if !ok {
+		return "", fmt.Errorf("key %s not found", key)
+	}
+	result, ok = value.(string)
+	if !ok {
+		return "", fmt.Errorf("the value of the key %s can't be casted into string: %v", key, value)
+	}
+
+	return result, nil
 }
 
 // NewAPIClient makes a new api client for RESTful calls.
@@ -252,9 +320,11 @@ func NewAPIClient(opt *ApiClientOpt) (*APIClient, error) {
 func (client *APIClient) toString() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("uri: %s\n", client.Uri))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
-	buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.ClaimsJson))
+	if client.Jwt != nil {
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.secret: %s\n", client.Jwt.Secret))
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.algorithm: %s\n", client.Jwt.Algortithm))
+		buffer.WriteString(fmt.Sprintf("jwt_hashed_token.claimsJson: %s\n", client.Jwt.Claims))
+	}
 	buffer.WriteString(fmt.Sprintf("insecure: %t\n", client.Insecure))
 	buffer.WriteString(fmt.Sprintf("username: %s\n", client.Username))
 	buffer.WriteString(fmt.Sprintf("password: %s\n", client.Password))
@@ -282,7 +352,7 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 	var err error
 
 	if client.Debug {
-		log.Printf("api_client.go: method='%s', path='%s', full uri (derived)='%s', data='%s'\n", method, path, fullURI, data)
+		log.Printf("api_client.go: method=%s, path=%s, full uri (derived)=%s, data=%s\n", method, path, fullURI, data)
 	}
 
 	buffer := bytes.NewBuffer([]byte(data))
@@ -315,7 +385,8 @@ func (client *APIClient) SendRequest(method string, path string, data string) (s
 	}
 
 	if client.Jwt != nil {
-		jwt, _ := createHashedJWT(client.Jwt)
+		client.Jwt.completeClaimValidityTime()
+		jwt, _ := client.Jwt.getSignedJwt()
 		req.Header.Set("Authorization", "Bearer "+jwt)
 	}
 
